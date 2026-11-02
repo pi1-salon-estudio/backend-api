@@ -12,6 +12,8 @@ info:
 servers:
   - url: /
     description: Este mismo servidor (sirve para probar desde Swagger en Render)
+  - url: https://pi1-salon-estudio-api.onrender.com
+    description: Producción (Render)
   - url: http://localhost:3000
     description: Local
 
