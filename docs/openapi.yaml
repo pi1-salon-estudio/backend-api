@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: API Salón de Estudio Colaborativo
+  version: 0.1.0
+  description: |
+    API REST del Mini-proyecto 2 (Proyecto Integrador I, Universidad del Valle).
+    El frontend nunca consulta Firestore directamente: todos los datos pasan por esta API.
+
+    Todos los errores tienen la misma forma: `{ "error": { "codigo", "mensaje" } }`.
+    `codigo` es estable y sirve para que el frontend decida qué hacer.
+    `mensaje` está escrito para el estudiante, sin términos técnicos.
+servers:
+  - url: /
+    description: Este mismo servidor (sirve para probar desde Swagger en Render)
+  - url: http://localhost:3000
+    description: Local
+
+tags:
+  - name: Salud
+    description: Estado del servicio
+  - name: Base técnica
+    description: TS-00, prueba de punta a punta (frontend, API y Firestore)
+
+paths:
+  /health:
+    get:
+      tags: [Salud]
+      operationId: obtenerSalud
+      summary: Comprueba que el servicio está vivo
+      security: []
+      description: |
+        La usa Render para saber si el servicio responde.
+        No consulta Firestore, para que una falla de la base de datos no haga que Render reinicie la API.
+      responses:
+        '200':
+          description: El servicio está funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [estado]
+                properties:
+                  estado:
+                    type: string
+                    example: ok
+
+  /api/v1/base-tecnica:
+    get:
+      tags: [Base técnica]
+      operationId: obtenerBaseTecnica
+      summary: Devuelve el dato de la base técnica guardado en Firestore
+      security: []
+      description: Lee el documento `base_tecnica/estado` de Firestore.
+      responses:
+        '200':
+          description: Dato leído correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseTecnica'
+        '404':
+          description: El documento no existe en Firestore. Reintentar no lo soluciona.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: DATO_NO_ENCONTRADO
+                  mensaje: No encontramos la información que buscas.
+        '503':
+          description: Firestore no respondió. Tiene sentido reintentar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: BD_NO_DISPONIBLE
+                  mensaje: No pudimos consultar los datos. Intenta de nuevo en unos segundos.
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  responses:
+    ErrorInterno:
+      description: Error inesperado del servidor. No expone detalles internos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              codigo: ERROR_INTERNO
+              mensaje: Algo salió mal de nuestro lado. Intenta de nuevo más tarde.
+  securitySchemes:
+    firebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        ID token de Firebase Authentication en el encabezado `Authorization: Bearer <token>`.
+        Se usa desde el Sprint 1 (TS-01). Los endpoints de este archivo son públicos (`security: []`).
+  schemas:
+    BaseTecnica:
+      type: object
+      required: [mensaje, actualizadoEn]
+      properties:
+        mensaje:
+          type: string
+          example: Base técnica conectada
+        actualizadoEn:
+          type: string
+          format: date-time
+          description: Fecha en ISO 8601 y UTC. El frontend la muestra en hora local.
+          example: '2026-11-02T16:40:00.000Z'
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [codigo, mensaje]
+          properties:
+            codigo:
+              type: string
+              example: BD_NO_DISPONIBLE
+            mensaje:
+              type: string
+              example: No pudimos consultar los datos. Intenta de nuevo en unos segundos.
