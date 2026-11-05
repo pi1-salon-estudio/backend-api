@@ -1,0 +1,94 @@
+name: Reporte de error
+description: Algo no funciona como dice la historia o el criterio de aceptación.
+title: "[Error] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reporta lo que viste en **producción** (Vercel o Render), no en local.
+        Un error por reporte. La evidencia debe mostrar la URL.
+
+  - type: input
+    id: historia
+    attributes:
+      label: Historia o caso de prueba
+      description: Ejemplo TS-00 o CP-TS00-03.
+      placeholder: TS-00 / CP-TS00-03
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: URL donde ocurre
+      placeholder: https://pi1-salon-estudio.vercel.app/
+    validations:
+      required: true
+
+  - type: dropdown
+    id: navegador
+    attributes:
+      label: Navegador y dispositivo
+      options:
+        - Chrome (computador)
+        - Edge (computador)
+        - Chrome (celular)
+        - Otro (indícalo en los pasos)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severidad
+    attributes:
+      label: Severidad
+      description: Usa la escala del plan de pruebas.
+      options:
+        - "4 · Bloqueante: la historia no se puede completar"
+        - "3 · Alta: funciona mal y no hay forma de evitarlo"
+        - "2 · Media: hay una forma de evitarlo"
+        - "1 · Baja: detalle visual o de texto"
+    validations:
+      required: true
+
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Abrir https://pi1-salon-estudio.vercel.app/
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Resultado esperado
+      description: Lo que dice la historia o el criterio de aceptación.
+    validations:
+      required: true
+
+  - type: textarea
+    id: obtenido
+    attributes:
+      label: Resultado obtenido
+      description: Lo que pasó en realidad.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidencia
+    attributes:
+      label: Evidencia
+      description: Arrastra aquí la captura o el video. La URL debe verse.
+    validations:
+      required: true
+
+  - type: textarea
+    id: consola
+    attributes:
+      label: Errores en la consola del navegador (opcional)
+      description: Copia el texto del error si aparece en DevTools → Console.
+      render: text
