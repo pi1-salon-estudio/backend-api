@@ -11,7 +11,13 @@ export function errorHandler(
 ): void {
   if (error instanceof AppError) {
     if (error.status >= 500) console.error(`[${error.codigo}]`, error.cause ?? error)
-    res.status(error.status).json({ error: { codigo: error.codigo, mensaje: error.message } })
+    res.status(error.status).json({
+      error: {
+        codigo: error.codigo,
+        mensaje: error.message,
+        ...(error.campos ? { campos: error.campos } : {}),
+      },
+    })
     return
   }
 
