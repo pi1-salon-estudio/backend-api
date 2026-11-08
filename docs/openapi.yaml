@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API Salón de Estudio Colaborativo
-  version: 0.1.0
+  version: 0.2.0
   description: |
     API REST del Mini-proyecto 2 (Proyecto Integrador I, Universidad del Valle).
     El frontend nunca consulta Firestore directamente: todos los datos pasan por esta API.
@@ -22,6 +22,8 @@ tags:
     description: Estado del servicio
   - name: Base técnica
     description: TS-00, prueba de punta a punta (frontend, API y Firestore)
+  - name: Usuarios
+    description: TS-01, registro, sesión y perfil. El inicio con correo lo hace Firebase en el navegador.
 
 paths:
   /health:
@@ -83,8 +85,228 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorInterno'
 
+  /api/v1/usuarios:
+    post:
+      tags: [Usuarios]
+      operationId: registrarConCorreo
+      summary: Crea la cuenta con correo y contraseña
+      security: []
+      description: |
+        Crea el usuario en Firebase Authentication y guarda el perfil en Firestore.
+        El nombre de usuario se reserva en una transacción: si dos personas eligen el mismo, solo una queda.
+        La contraseña no se guarda en Firestore.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroCorreo'
+      responses:
+        '201':
+          description: Cuenta y perfil creados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Perfil'
+        '400':
+          description: Hay campos inválidos. `campos` dice qué corregir en cada uno.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: El correo ya está registrado o el nombre de usuario está ocupado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/usuarios/google:
+    post:
+      tags: [Usuarios]
+      operationId: completarRegistroGoogle
+      summary: Elige el nombre de usuario después de entrar con Google
+      security:
+        - firebaseAuth: []
+      description: |
+        El navegador ya autenticó a la persona con Google y envía el ID token.
+        Esta ruta copia el nombre, el avatar y el correo del token, y completa el perfil.
+        Si el perfil ya tenía nombre de usuario, lo devuelve sin cambiarlo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombreUsuario]
+              properties:
+                nombreUsuario:
+                  type: string
+                  example: ana_ruiz
+      responses:
+        '201':
+          description: Perfil completo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Perfil'
+        '400':
+          description: El nombre de usuario no cumple el formato, o la sesión no viene de Google.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '409':
+          description: El nombre de usuario ya está en uso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /api/v1/sesion:
+    get:
+      tags: [Usuarios]
+      operationId: obtenerSesion
+      summary: Dice si la sesión tiene el perfil completo
+      security:
+        - firebaseAuth: []
+      description: |
+        Sirve después del ingreso. Si `perfilCompleto` es falso, la persona entró con Google
+        y todavía debe elegir nombre de usuario. Esta ruta no exige el perfil completo.
+      responses:
+        '200':
+          description: Sesión vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstadoSesion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+
+  /api/v1/sesion/cerrar:
+    post:
+      tags: [Usuarios]
+      operationId: cerrarSesion
+      summary: Revoca la sesión en Firebase
+      security:
+        - firebaseAuth: []
+      description: |
+        Invalida los tokens de refresco. El navegador también debe descartar el ID token.
+        Una petición posterior con el token revocado responde 401.
+      responses:
+        '204':
+          description: Sesión revocada
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /api/v1/perfil:
+    get:
+      tags: [Usuarios]
+      operationId: obtenerPerfil
+      summary: Devuelve el perfil de la persona autenticada
+      security:
+        - firebaseAuth: []
+      description: Sin token responde 401. Con Google y sin nombre de usuario responde 403.
+      responses:
+        '200':
+          description: Perfil completo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Perfil'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+    patch:
+      tags: [Usuarios]
+      operationId: actualizarPerfil
+      summary: Actualiza nombres, apellidos y avatar
+      security:
+        - firebaseAuth: []
+      description: El correo, la contraseña y el nombre de usuario no se cambian en esta ruta.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambioPerfil'
+      responses:
+        '200':
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Perfil'
+        '400':
+          description: Datos inválidos, o se intentó cambiar correo, contraseña o nombre de usuario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+    delete:
+      tags: [Usuarios]
+      operationId: eliminarCuenta
+      summary: Elimina la cuenta y el perfil
+      security:
+        - firebaseAuth: []
+      description: Borra el usuario de Firebase Authentication, el perfil y la reserva del nombre de usuario.
+      responses:
+        '204':
+          description: Cuenta eliminada
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
 components:
   responses:
+    NoAutorizado:
+      description: No hay token, o el token no es válido o fue revocado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              codigo: NO_AUTORIZADO
+              mensaje: Inicia sesión para continuar.
+    PerfilIncompleto:
+      description: La sesión es válida, pero falta elegir el nombre de usuario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              codigo: PERFIL_INCOMPLETO
+              mensaje: Elige un nombre de usuario para continuar.
+    ServicioNoDisponible:
+      description: Firebase o Firestore no respondieron. Tiene sentido reintentar.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              codigo: SERVICIO_NO_DISPONIBLE
+              mensaje: No pudimos completar la operación. Intenta de nuevo en unos segundos.
     ErrorInterno:
       description: Error inesperado del servidor. No expone detalles internos.
       content:
@@ -102,7 +324,7 @@ components:
       bearerFormat: JWT
       description: |
         ID token de Firebase Authentication en el encabezado `Authorization: Bearer <token>`.
-        Se usa desde el Sprint 1 (TS-01). Los endpoints de este archivo son públicos (`security: []`).
+        Las rutas de sesión y de perfil lo exigen. El registro con correo es público.
   schemas:
     BaseTecnica:
       type: object
@@ -130,3 +352,83 @@ components:
             mensaje:
               type: string
               example: No pudimos consultar los datos. Intenta de nuevo en unos segundos.
+            campos:
+              type: object
+              additionalProperties:
+                type: string
+              description: Presente solo cuando el error es de un campo del formulario.
+    RegistroCorreo:
+      type: object
+      required: [nombres, apellidos, nombreUsuario, avatar, correo, contrasena]
+      properties:
+        nombres:
+          type: string
+          maxLength: 80
+        apellidos:
+          type: string
+          maxLength: 80
+        nombreUsuario:
+          type: string
+          description: De 3 a 20 caracteres. Empieza con letra y sigue con letras, números o guion bajo.
+          example: ana_ruiz
+        avatar:
+          type: string
+          description: Identificador o URL del avatar.
+        correo:
+          type: string
+          format: email
+        contrasena:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 64
+          description: Mínimo 8 caracteres. No se guarda en Firestore.
+    CambioPerfil:
+      type: object
+      required: [nombres, apellidos, avatar]
+      properties:
+        nombres:
+          type: string
+        apellidos:
+          type: string
+        avatar:
+          type: string
+    Perfil:
+      type: object
+      required: [uid, nombres, apellidos, nombreUsuario, avatar, correo, proveedor, creadoEn]
+      properties:
+        uid:
+          type: string
+        nombres:
+          type: string
+        apellidos:
+          type: string
+        nombreUsuario:
+          type: string
+        avatar:
+          type: string
+        correo:
+          type: string
+        proveedor:
+          type: string
+          enum: [correo, google]
+        creadoEn:
+          type: string
+          format: date-time
+    EstadoSesion:
+      type: object
+      required: [uid, correo, proveedor, perfilCompleto, perfil]
+      properties:
+        uid:
+          type: string
+        correo:
+          type: string
+        proveedor:
+          type: string
+          enum: [correo, google]
+        perfilCompleto:
+          type: boolean
+        perfil:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Perfil'

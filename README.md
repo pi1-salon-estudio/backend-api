@@ -25,7 +25,20 @@ Node.js 24, TypeScript, Express 5, Firebase Admin SDK (Firestore), Swagger UI y 
 |---|---|---|
 | GET | `/health` | Responde `{"estado":"ok"}` si el servicio está vivo. No consulta Firestore. |
 | GET | `/api/v1/base-tecnica` | Devuelve el documento `base_tecnica/estado` de Firestore (TS-00). |
+| POST | `/api/v1/usuarios` | Crea la cuenta con correo y contraseña, y guarda el perfil (TS-01). |
+| POST | `/api/v1/usuarios/google` | Completa el perfil después de entrar con Google. Exige el ID token. |
+| GET | `/api/v1/sesion` | Dice si la sesión tiene el perfil completo. |
+| POST | `/api/v1/sesion/cerrar` | Revoca la sesión en Firebase. |
+| GET | `/api/v1/perfil` | Devuelve el perfil. Sin token responde 401. |
+| PATCH | `/api/v1/perfil` | Cambia nombres, apellidos y avatar. |
+| DELETE | `/api/v1/perfil` | Elimina la cuenta, el perfil y el nombre de usuario. |
 | GET | `/docs` | Swagger UI con el contrato de la API. |
+
+El ingreso con correo y contraseña lo hace Firebase Authentication en el navegador. Esta API no recibe la contraseña en el ingreso: comprueba el ID token. La contraseña del registro se entrega a Firebase y no se guarda en Firestore.
+
+Las rutas privadas llevan `Authorization: Bearer <ID token>`. Sin token, o con un token revocado, responden 401. Si la persona entró con Google y todavía no elige nombre de usuario, `/api/v1/perfil` responde 403.
+
+`firestore.rules` niega todo acceso directo del navegador a Firestore. El Admin SDK no usa esas reglas. Hay que publicarlas en la consola de Firebase para que un cliente no pueda leer ni escribir las colecciones `usuarios` y `nombres_usuario`.
 
 El contrato completo está en [`docs/openapi.yaml`](docs/openapi.yaml). Cualquier cambio en un endpoint empieza por ese archivo.
 
@@ -99,11 +112,13 @@ src/
   controllers/    recibe la petición HTTP y responde
   services/       lógica y traducción de fallas a errores del contrato
   repositories/   único lugar que consulta Firestore
-  middlewares/    ruta no encontrada y manejador central de errores
+  middlewares/    sesión, perfil completo, ruta no encontrada y errores
+  usuarios/       validación de los datos de registro y de perfil
   errors/         clase AppError
   utils/          utilidades, como el tiempo límite de 5 s para Firestore
 docs/
   openapi.yaml    contrato de la API
+firestore.rules   niega el acceso directo del navegador a Firestore
 ```
 
 ## Despliegue
