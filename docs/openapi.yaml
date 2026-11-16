@@ -24,6 +24,8 @@ tags:
     description: TS-00, prueba de punta a punta (frontend, API y Firestore)
   - name: Usuarios
     description: TS-01, registro, sesión y perfil. El inicio con correo lo hace Firebase en el navegador.
+  - name: Salas
+    description: US-06 y TS-02, crear salas y verlas en el panel.
 
 paths:
   /health:
@@ -275,6 +277,113 @@ paths:
         '503':
           $ref: '#/components/responses/ServicioNoDisponible'
 
+
+  /api/v1/salas:
+    post:
+      tags: [Salas]
+      operationId: crearSala
+      summary: Crea una sala y deja como anfitrión al dueño del token (US-06)
+      security:
+        - firebaseAuth: []
+      description: |
+        El ID lo genera Firestore y es único. El anfitrión sale del token, nunca del cuerpo.
+        El nombre se recorta y debe tener de 1 a 60 caracteres.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalaNueva'
+      responses:
+        '201':
+          description: Sala creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sala'
+        '400':
+          description: El nombre está vacío o pasa de 60 caracteres.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: DATOS_INVALIDOS
+                  mensaje: Revisa los campos marcados.
+                  campos:
+                    nombre: Escribe un nombre de 1 a 60 caracteres.
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+    get:
+      tags: [Salas]
+      operationId: listarSalasPropias
+      summary: Lista solo las salas que creó el dueño del token (US-06)
+      security:
+        - firebaseAuth: []
+      description: |
+        Filtra en el servidor por el anfitrión del token y ordena de la más reciente a la más antigua.
+        Si la persona no tiene salas, `salas` llega vacía y el panel muestra su mensaje.
+      responses:
+        '200':
+          description: Salas de la persona (puede ser una lista vacía)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaSalas'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /api/v1/salas/{id}:
+    get:
+      tags: [Salas]
+      operationId: obtenerSala
+      summary: Devuelve una sala por su ID
+      security:
+        - firebaseAuth: []
+      description: |
+        Responde a cualquier persona con sesión, porque unirse con el ID (US-08) se basa en esto.
+        `esAnfitrion` dice si quien pregunta creó la sala.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la sala que generó Firestore.
+          schema:
+            type: string
+            example: 7Qk2mXrB9tLwN4pZs1Ha
+      responses:
+        '200':
+          description: Sala encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sala'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+        '404':
+          description: No existe una sala con ese ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: SALA_NO_ENCONTRADA
+                  mensaje: No encontramos una sala con ese ID.
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
 components:
   responses:
     NoAutorizado:
@@ -432,3 +541,39 @@ components:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/Perfil'
+    SalaNueva:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Se recortan los espacios del inicio y del final antes de validar.
+          example: Cálculo II
+    Sala:
+      type: object
+      required: [id, nombre, creadaEn, esAnfitrion]
+      properties:
+        id:
+          type: string
+          example: 7Qk2mXrB9tLwN4pZs1Ha
+        nombre:
+          type: string
+          example: Cálculo II
+        creadaEn:
+          type: string
+          format: date-time
+          example: '2026-11-18T23:10:00.000Z'
+        esAnfitrion:
+          type: boolean
+          description: Verdadero si quien pregunta creó la sala.
+          example: true
+    ListaSalas:
+      type: object
+      required: [salas]
+      properties:
+        salas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sala'
