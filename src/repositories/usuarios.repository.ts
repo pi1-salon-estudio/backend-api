@@ -146,9 +146,14 @@ export async function actualizarPerfilCompleto(
   })
 }
 
+// Perfil y reserva del nombre en una sola transacción. La reserva solo se borra si es de
+// esta persona: así un reintento nunca libera un nombre que ya tomó otra cuenta.
 export async function borrarDatos(uid: string, clave: string): Promise<void> {
-  const lote = db.batch()
-  lote.delete(usuarios().doc(uid))
-  lote.delete(nombres().doc(clave))
-  await lote.commit()
+  const perfilRef = usuarios().doc(uid)
+  const nombreRef = nombres().doc(clave)
+  await db.runTransaction(async (tx) => {
+    const reserva = clave ? await tx.get(nombreRef) : null
+    tx.delete(perfilRef)
+    if (reserva?.exists && reserva.data()?.uid === uid) tx.delete(nombreRef)
+  })
 }

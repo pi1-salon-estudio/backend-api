@@ -28,7 +28,8 @@ router.get('/api/v1/sesion', exigirSesion, getSesion)
 router.post('/api/v1/sesion/cerrar', exigirSesion, postCerrarSesion)
 router.get('/api/v1/perfil', exigirSesion, exigirPerfil, getPerfil)
 router.patch('/api/v1/perfil', exigirSesion, exigirPerfil, patchPerfil)
-router.delete('/api/v1/perfil', exigirSesion, exigirPerfil, deletePerfil)
+// Sin exigirPerfil: si un borrado quedó a medias, el reintento debe funcionar aunque el perfil ya no exista.
+router.delete('/api/v1/perfil', exigirSesion, deletePerfil)
 
 router.post('/api/v1/salas', exigirSesion, exigirPerfil, postSala)
 router.get('/api/v1/salas', exigirSesion, exigirPerfil, getSalas)

@@ -324,17 +324,25 @@ paths:
     delete:
       tags: [Usuarios]
       operationId: eliminarCuenta
-      summary: Elimina la cuenta y el perfil
+      summary: Elimina la cuenta y sus datos (US-05)
       security:
         - firebaseAuth: []
-      description: Borra el usuario de Firebase Authentication, el perfil y la reserva del nombre de usuario.
+      description: |
+        Borra la cuenta del dueño del token. El orden evita dejar datos huérfanos:
+
+        1. Las salas que la persona creó, con sus mensajes.
+        2. El perfil y la reserva del nombre de usuario, que queda libre para otra persona.
+        3. Al final, la cuenta en Firebase Authentication.
+
+        Los mensajes que la persona escribió en salas de otros se conservan y se muestran con el autor «Cuenta eliminada».
+        Si responde 503, se puede repetir sin riesgo: lo que ya se borró no se vuelve a pedir.
+        Esta ruta no exige perfil completo, para que un reintento funcione aunque el perfil ya no exista.
+        Después del 204 el navegador cierra la sesión de Firebase.
       responses:
         '204':
           description: Cuenta eliminada
         '401':
           $ref: '#/components/responses/NoAutorizado'
-        '403':
-          $ref: '#/components/responses/PerfilIncompleto'
         '503':
           $ref: '#/components/responses/ServicioNoDisponible'
 
