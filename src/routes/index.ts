@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getBaseTecnica } from '../controllers/base-tecnica.controller.js'
+import { getSala, getSalas, postSala } from '../controllers/salas.controller.js'
 import {
   deletePerfil,
   getPerfil,
@@ -28,3 +29,7 @@ router.post('/api/v1/sesion/cerrar', exigirSesion, postCerrarSesion)
 router.get('/api/v1/perfil', exigirSesion, exigirPerfil, getPerfil)
 router.patch('/api/v1/perfil', exigirSesion, exigirPerfil, patchPerfil)
 router.delete('/api/v1/perfil', exigirSesion, exigirPerfil, deletePerfil)
+
+router.post('/api/v1/salas', exigirSesion, exigirPerfil, postSala)
+router.get('/api/v1/salas', exigirSesion, exigirPerfil, getSalas)
+router.get('/api/v1/salas/:id', exigirSesion, exigirPerfil, getSala)
