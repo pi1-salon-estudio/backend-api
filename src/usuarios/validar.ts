@@ -17,6 +17,8 @@ export interface CambioPerfil {
   nombres: string
   apellidos: string
   avatar: string
+  nombreUsuario: string
+  correo: string
 }
 
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
@@ -83,24 +85,31 @@ export function leerNombreUsuario(entrada: unknown): string {
 
 export function leerCambioPerfil(entrada: unknown): CambioPerfil {
   if (!esObjeto(entrada)) throw datosInvalidos({ formulario: 'Faltan los datos del perfil.' })
-  if ('nombreUsuario' in entrada || 'correo' in entrada || 'contrasena' in entrada) {
-    throw new AppError(
-      400,
-      'DATOS_INVALIDOS',
-      'Aquí solo se pueden cambiar los nombres, los apellidos y el avatar.',
-    )
+  if ('contrasena' in entrada) {
+    throw new AppError(400, 'DATOS_INVALIDOS', 'La contraseña no se cambia desde el perfil.')
   }
 
   const campos: Record<string, string> = {}
   const nombres = texto(entrada.nombres)
   const apellidos = texto(entrada.apellidos)
   const avatar = texto(entrada.avatar)
+  const nombreUsuario = texto(entrada.nombreUsuario)
+  const correo = texto(entrada.correo).toLowerCase()
+
   revisarNombre(nombres, 'tus nombres', campos, 'nombres')
   revisarNombre(apellidos, 'tus apellidos', campos, 'apellidos')
   if (!avatar) campos.avatar = 'Elige un avatar.'
   else if (avatar.length > 2000) campos.avatar = 'El avatar es demasiado largo.'
+  if (!NOMBRE_USUARIO.test(nombreUsuario)) {
+    campos.nombreUsuario =
+      'Usa de 3 a 20 caracteres: empieza con una letra y sigue con letras, números o guion bajo.'
+  }
+  if (!correo || !CORREO.test(correo) || correo.length > 320) {
+    campos.correo = 'Escribe un correo válido.'
+  }
+
   if (Object.keys(campos).length > 0) throw datosInvalidos(campos)
-  return { nombres, apellidos, avatar }
+  return { nombres, apellidos, avatar, nombreUsuario, correo }
 }
 
 export function claveDeUsuario(nombreUsuario: string): string {

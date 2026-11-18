@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { auth } from '../config/firebase.js'
 import { AppError } from '../errors/app-error.js'
 import {
-  actualizarDatos,
+  actualizarPerfilCompleto,
   borrarDatos,
   completarPerfilGoogle,
   confirmarReserva,
@@ -35,6 +35,18 @@ function ocupado(): AppError {
 function correoRegistrado(): AppError {
   return new AppError(409, 'CORREO_YA_REGISTRADO', 'Este correo ya está registrado. Inicia sesión.', {
     campos: { correo: 'Este correo ya está registrado. Inicia sesión.' },
+  })
+}
+
+function correoEnUso(): AppError {
+  return new AppError(409, 'CORREO_EN_USO', 'Ese correo ya lo usa otra cuenta.', {
+    campos: { correo: 'Ese correo ya lo usa otra cuenta.' },
+  })
+}
+
+function correoNoEditable(): AppError {
+  return new AppError(403, 'CORREO_NO_EDITABLE', 'Tu correo lo administra Google y no se puede cambiar aquí.', {
+    campos: { correo: 'Tu correo lo administra Google y no se puede cambiar aquí.' },
   })
 }
 
@@ -144,11 +156,45 @@ export async function perfilCompleto(uid: string): Promise<Perfil> {
   return perfil
 }
 
-export async function actualizarPerfil(uid: string, entrada: unknown): Promise<Perfil> {
+// Auth y Firestore no comparten transacción. Primero se cambia el correo en Auth, que ya
+// garantiza que no se repita; después la transacción de Firestore. Si la segunda falla,
+// se devuelve el correo anterior en Auth para no dejar las dos fuentes distintas.
+export async function actualizarPerfil(perfil: Perfil, entrada: unknown): Promise<Perfil> {
   const cambios = leerCambioPerfil(entrada)
-  const perfil = await consultar(actualizarDatos(uid, cambios))
-  if (!perfil) throw new AppError(404, 'PERFIL_NO_ENCONTRADO', 'No encontramos tu perfil.')
-  return perfil
+  const correoCambia = cambios.correo !== perfil.correo.toLowerCase()
+
+  if (correoCambia && perfil.proveedor === 'google') throw correoNoEditable()
+
+  if (correoCambia) {
+    try {
+      await conTiempoLimite(auth.updateUser(perfil.uid, { email: cambios.correo }), LIMITE_MS)
+    } catch (error) {
+      if (codigoAuth(error) === 'auth/email-already-exists') throw correoEnUso()
+      throw noDisponible(error)
+    }
+  }
+
+  const devolverCorreo = async () => {
+    if (!correoCambia) return
+    await auth
+      .updateUser(perfil.uid, { email: perfil.correo })
+      .catch((reversion) => console.error('[REVERSION_CORREO]', perfil.uid, reversion))
+  }
+
+  let resultado
+  try {
+    resultado = await consultar(
+      actualizarPerfilCompleto(perfil.uid, cambios, claveDeUsuario(cambios.nombreUsuario), claveDeUsuario),
+    )
+  } catch (error) {
+    await devolverCorreo()
+    throw error
+  }
+
+  if (resultado.tipo === 'listo') return resultado.perfil
+  await devolverCorreo()
+  if (resultado.tipo === 'ocupado') throw ocupado()
+  throw new AppError(404, 'PERFIL_NO_ENCONTRADO', 'No encontramos tu perfil.')
 }
 
 export async function cerrarSesion(uid: string): Promise<void> {
