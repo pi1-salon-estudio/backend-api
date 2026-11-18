@@ -112,16 +112,37 @@ export async function completarPerfilGoogle(perfil: PerfilNuevo, clave: string):
   })
 }
 
-export async function actualizarDatos(
+export type ResultadoCambio =
+  | { tipo: 'listo'; perfil: Perfil }
+  | { tipo: 'ocupado' }
+  | { tipo: 'sin_perfil' }
+
+// Todo en una transacción: si dos personas piden el mismo nombre de usuario al tiempo,
+// Firestore reintenta una de las dos y esa ve la reserva de la otra. Nunca quedan las dos.
+export async function actualizarPerfilCompleto(
   uid: string,
-  cambios: { nombres: string; apellidos: string; avatar: string },
-): Promise<Perfil | null> {
-  const ref = usuarios().doc(uid)
+  cambios: { nombres: string; apellidos: string; avatar: string; nombreUsuario: string; correo: string },
+  claveNueva: string,
+  claveDe: (nombreUsuario: string) => string,
+): Promise<ResultadoCambio> {
+  const perfilRef = usuarios().doc(uid)
+  const nuevaRef = nombres().doc(claveNueva)
   return db.runTransaction(async (tx) => {
-    const documento = await tx.get(ref)
-    if (!documento.exists) return null
-    tx.update(ref, cambios)
-    return leerPerfil({ ...(documento.data() ?? {}), ...cambios }, uid)
+    // En una transacción de Firestore todas las lecturas van antes de cualquier escritura.
+    const actual = await tx.get(perfilRef)
+    if (!actual.exists) return { tipo: 'sin_perfil' }
+    const datos = actual.data() ?? {}
+    const claveVieja = claveDe(String(datos.nombreUsuario ?? ''))
+
+    if (claveNueva !== claveVieja) {
+      const reserva = await tx.get(nuevaRef)
+      if (reserva.exists && reserva.data()?.uid !== uid) return { tipo: 'ocupado' }
+      tx.set(nuevaRef, { uid })
+      if (claveVieja) tx.delete(nombres().doc(claveVieja))
+    }
+
+    tx.update(perfilRef, cambios)
+    return { tipo: 'listo', perfil: leerPerfil({ ...datos, ...cambios }, uid) }
   })
 }
 
