@@ -1,14 +1,15 @@
 openapi: 3.0.3
 info:
   title: API Salón de Estudio Colaborativo
-  version: 0.2.0
+  version: 0.3.0
   description: |
     API REST del Mini-proyecto 2 (Proyecto Integrador I, Universidad del Valle).
     El frontend nunca consulta Firestore directamente: todos los datos pasan por esta API.
 
-    Todos los errores tienen la misma forma: `{ "error": { "codigo", "mensaje" } }`.
+    Todos los errores tienen la misma forma: `{ "error": { "codigo", "mensaje", "campos" } }`.
     `codigo` es estable y sirve para que el frontend decida qué hacer.
     `mensaje` está escrito para el estudiante, sin términos técnicos.
+    `campos` aparece solo cuando el error es de un campo del formulario.
 servers:
   - url: /
     description: Este mismo servidor (sirve para probar desde Swagger en Render)
@@ -231,10 +232,19 @@ paths:
     patch:
       tags: [Usuarios]
       operationId: actualizarPerfil
-      summary: Actualiza nombres, apellidos y avatar
+      summary: Actualiza nombres, apellidos, avatar, nombre de usuario y correo (US-04)
       security:
         - firebaseAuth: []
-      description: El correo, la contraseña y el nombre de usuario no se cambian en esta ruta.
+      description: |
+        Se envía el formulario completo. El perfil que se cambia es siempre el del token: no hay uid en la ruta.
+
+        - Nombre de usuario: la unicidad se revisa en el servidor dentro de una transacción.
+          Cambiar solo mayúsculas y minúsculas del propio nombre no cuenta como colisión.
+          El nombre anterior queda libre para otra persona.
+        - Correo: solo se puede cambiar en cuentas creadas con correo. En cuentas de Google lo administra Google
+          y la ruta responde 403 si llega un correo distinto al actual.
+          Si el correo cambió, el navegador debe pedir un token nuevo (`getIdToken(true)`).
+        - La contraseña no se cambia en esta ruta.
       requestBody:
         required: true
         content:
@@ -249,15 +259,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/Perfil'
         '400':
-          description: Datos inválidos, o se intentó cambiar correo, contraseña o nombre de usuario.
+          description: Hay campos inválidos. `campos` dice qué corregir en cada uno.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: DATOS_INVALIDOS
+                  mensaje: Revisa los campos marcados.
+                  campos:
+                    nombreUsuario: 'Usa de 3 a 20 caracteres: empieza con una letra y sigue con letras, números o guion bajo.'
+                    correo: Escribe un correo válido.
         '401':
           $ref: '#/components/responses/NoAutorizado'
         '403':
-          $ref: '#/components/responses/PerfilIncompleto'
+          description: Falta elegir el nombre de usuario, o una cuenta de Google intentó cambiar el correo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                perfilIncompleto:
+                  summary: La cuenta de Google todavía no tiene nombre de usuario
+                  value:
+                    error:
+                      codigo: PERFIL_INCOMPLETO
+                      mensaje: Elige un nombre de usuario para continuar.
+                correoNoEditable:
+                  summary: Cuenta de Google que envía un correo distinto
+                  value:
+                    error:
+                      codigo: CORREO_NO_EDITABLE
+                      mensaje: Tu correo lo administra Google y no se puede cambiar aquí.
+                      campos:
+                        correo: Tu correo lo administra Google y no se puede cambiar aquí.
+        '409':
+          description: El nombre de usuario o el correo ya los usa otra cuenta. No se guardó ningún cambio.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                nombreUsuarioOcupado:
+                  summary: Otra persona ya usa ese nombre de usuario
+                  value:
+                    error:
+                      codigo: NOMBRE_USUARIO_OCUPADO
+                      mensaje: Ese nombre de usuario ya está en uso. Elige otro.
+                      campos:
+                        nombreUsuario: Ese nombre de usuario ya está en uso. Elige otro.
+                correoEnUso:
+                  summary: Otra cuenta ya usa ese correo
+                  value:
+                    error:
+                      codigo: CORREO_EN_USO
+                      mensaje: Ese correo ya lo usa otra cuenta.
+                      campos:
+                        correo: Ese correo ya lo usa otra cuenta.
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
     delete:
       tags: [Usuarios]
       operationId: eliminarCuenta
@@ -385,14 +446,29 @@ components:
           description: Mínimo 8 caracteres. No se guarda en Firestore.
     CambioPerfil:
       type: object
-      required: [nombres, apellidos, avatar]
+      required: [nombres, apellidos, avatar, nombreUsuario, correo]
       properties:
         nombres:
           type: string
+          maxLength: 80
+          example: Ana
         apellidos:
           type: string
+          maxLength: 80
+          example: Ruiz
         avatar:
           type: string
+          description: Identificador o URL del avatar.
+          example: pino
+        nombreUsuario:
+          type: string
+          description: De 3 a 20 caracteres. Empieza con letra y sigue con letras, números o guion bajo.
+          example: ana_r
+        correo:
+          type: string
+          format: email
+          description: En cuentas de Google debe ser igual al actual.
+          example: ana.ruiz@correounivalle.edu.co
     Perfil:
       type: object
       required: [uid, nombres, apellidos, nombreUsuario, avatar, correo, proveedor, creadoEn]
@@ -429,6 +505,7 @@ components:
         perfilCompleto:
           type: boolean
         perfil:
+          type: object
           nullable: true
           allOf:
             - $ref: '#/components/schemas/Perfil'

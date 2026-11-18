@@ -43,7 +43,7 @@ export async function getPerfil(req: Request, res: Response): Promise<void> {
 }
 
 export async function patchPerfil(req: Request, res: Response): Promise<void> {
-  res.json(await actualizarPerfil(perfilDe(req).uid, req.body))
+  res.json(await actualizarPerfil(perfilDe(req), req.body))
 }
 
 export async function deletePerfil(req: Request, res: Response): Promise<void> {
