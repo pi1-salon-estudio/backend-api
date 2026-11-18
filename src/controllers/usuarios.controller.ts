@@ -47,6 +47,6 @@ export async function patchPerfil(req: Request, res: Response): Promise<void> {
 }
 
 export async function deletePerfil(req: Request, res: Response): Promise<void> {
-  await eliminarCuenta(perfilDe(req))
+  await eliminarCuenta(sesionDe(req).uid)
   res.status(204).send()
 }

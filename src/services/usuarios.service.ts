@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { auth } from '../config/firebase.js'
+import { borrarSalasDe } from '../repositories/salas.repository.js'
 import { AppError } from '../errors/app-error.js'
 import {
   actualizarPerfilCompleto,
@@ -205,16 +206,21 @@ export async function cerrarSesion(uid: string): Promise<void> {
   }
 }
 
-export async function eliminarCuenta(perfil: Perfil): Promise<void> {
+// Orden pensado para no dejar datos huérfanos: primero lo que vive en Firestore y al final
+// la cuenta de Authentication. Mientras la cuenta exista, el token sigue sirviendo y un
+// reintento puede terminar lo que faltó. Cada paso se puede repetir sin error.
+export async function eliminarCuenta(uid: string): Promise<void> {
   try {
-    await auth.deleteUser(perfil.uid)
+    await conTiempoLimite(borrarSalasDe(uid), LIMITE_MS * 2)
+    const perfil = await conTiempoLimite(obtenerPerfil(uid), LIMITE_MS)
+    if (perfil) await conTiempoLimite(borrarDatos(uid, claveDeUsuario(perfil.nombreUsuario)), LIMITE_MS)
   } catch (error) {
-    if (codigoAuth(error) !== 'auth/user-not-found') throw noDisponible(error)
+    console.error('[ELIMINAR_CUENTA_FIRESTORE]', uid, error)
+    throw noDisponible(error)
   }
   try {
-    await borrarDatos(perfil.uid, claveDeUsuario(perfil.nombreUsuario))
+    await auth.deleteUser(uid)
   } catch (error) {
-    console.error('[LIMPIEZA_PERFIL]', perfil.uid, error)
-    throw noDisponible(error)
+    if (codigoAuth(error) !== 'auth/user-not-found') throw noDisponible(error)
   }
 }
