@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "salas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "anfitrionUid", "order": "ASCENDING" },
+        { "fieldPath": "creadaEn", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
