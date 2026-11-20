@@ -30,13 +30,16 @@ Node.js 24, TypeScript, Express 5, Firebase Admin SDK (Firestore), Swagger UI y 
 | GET | `/api/v1/sesion` | Dice si la sesión tiene el perfil completo. |
 | POST | `/api/v1/sesion/cerrar` | Revoca la sesión en Firebase. |
 | GET | `/api/v1/perfil` | Devuelve el perfil. Sin token responde 401. |
-| PATCH | `/api/v1/perfil` | Cambia nombres, apellidos y avatar. |
-| DELETE | `/api/v1/perfil` | Elimina la cuenta, el perfil y el nombre de usuario. |
+| PATCH | `/api/v1/perfil` | Cambia nombres, apellidos, avatar, nombre de usuario y correo. La unicidad se revisa en el servidor. En cuentas de Google el correo no se cambia (US-04). |
+| DELETE | `/api/v1/perfil` | Elimina las salas propias con sus mensajes, el perfil, el nombre de usuario y la cuenta de Authentication, en ese orden. Se puede repetir si falla (US-05). |
+| POST | `/api/v1/salas` | Crea una sala con ID de Firestore. El anfitrión sale del token (US-06). |
+| GET | `/api/v1/salas` | Lista solo las salas de quien llama, la más reciente primero (US-06). |
+| GET | `/api/v1/salas/{id}` | Devuelve una sala por su ID, o 404 (US-06). |
 | GET | `/docs` | Swagger UI con el contrato de la API. |
 
 El ingreso con correo y contraseña lo hace Firebase Authentication en el navegador. Esta API no recibe la contraseña en el ingreso: comprueba el ID token. La contraseña del registro se entrega a Firebase y no se guarda en Firestore.
 
-Las rutas privadas llevan `Authorization: Bearer <ID token>`. Sin token, o con un token revocado, responden 401. Si la persona entró con Google y todavía no elige nombre de usuario, `/api/v1/perfil` responde 403.
+Las rutas privadas llevan `Authorization: Bearer <ID token>`. Sin token, o con un token revocado, responden 401. Si la persona entró con Google y todavía no elige nombre de usuario, las rutas de perfil y de salas responden 403. La lista de salas usa el índice compuesto de `firestore.indexes.json`.
 
 `firestore.rules` niega todo acceso directo del navegador a Firestore. El Admin SDK no usa esas reglas. Hay que publicarlas en la consola de Firebase para que un cliente no pueda leer ni escribir las colecciones `usuarios` y `nombres_usuario`.
 
@@ -114,6 +117,7 @@ src/
   repositories/   único lugar que consulta Firestore
   middlewares/    sesión, perfil completo, ruta no encontrada y errores
   usuarios/       validación de los datos de registro y de perfil
+  salas/          validación del nombre y del ID de sala
   errors/         clase AppError
   utils/          utilidades, como el tiempo límite de 5 s para Firestore
 docs/
