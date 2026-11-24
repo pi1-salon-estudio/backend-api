@@ -35,6 +35,9 @@ Node.js 24, TypeScript, Express 5, Firebase Admin SDK (Firestore), Swagger UI y 
 | POST | `/api/v1/salas` | Crea una sala con ID de Firestore. El anfitrión sale del token (US-06). |
 | GET | `/api/v1/salas` | Lista solo las salas de quien llama, la más reciente primero (US-06). |
 | GET | `/api/v1/salas/{id}` | Devuelve una sala por su ID, o 404 (US-06). |
+| PATCH | `/api/v1/salas/{id}` | Cambia el nombre. Solo el anfitrión; si no, 403 (US-07). |
+| DELETE | `/api/v1/salas/{id}` | Borra la sala y sus mensajes. Solo el anfitrión; si no, 403 (US-07). |
+| GET | `/api/v1/salas/{id}/mensajes` | Historial del chat, del más antiguo al más nuevo de la página. `limite` (1 a 50, por defecto 30) y `antes` (ID del mensaje más antiguo ya visto) piden la página anterior (US-11). |
 | GET | `/docs` | Swagger UI con el contrato de la API. |
 
 El ingreso con correo y contraseña lo hace Firebase Authentication en el navegador. Esta API no recibe la contraseña en el ingreso: comprueba el ID token. La contraseña del registro se entrega a Firebase y no se guarda en Firestore.

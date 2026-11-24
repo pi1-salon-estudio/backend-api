@@ -452,6 +452,169 @@ paths:
                   mensaje: No encontramos una sala con ese ID.
         '503':
           $ref: '#/components/responses/ServicioNoDisponible'
+    patch:
+      tags: [Salas]
+      operationId: editarSala
+      summary: Cambia el nombre de una sala
+      security:
+        - firebaseAuth: []
+      description: Solo quien creó la sala. Otra persona recibe 403 y la sala no cambia (US-07).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalaNueva'
+      responses:
+        '200':
+          description: Sala con el nombre nuevo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sala'
+        '400':
+          description: El nombre está vacío o pasa de 60 caracteres.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          description: Falta el perfil, o quien llama no creó la sala.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                sinPermiso:
+                  value:
+                    error:
+                      codigo: SIN_PERMISO
+                      mensaje: Solo quien creó la sala puede cambiarla.
+                perfilIncompleto:
+                  value:
+                    error:
+                      codigo: PERFIL_INCOMPLETO
+                      mensaje: Elige un nombre de usuario para continuar.
+        '404':
+          description: No existe una sala con ese ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+    delete:
+      tags: [Salas]
+      operationId: eliminarSala
+      summary: Elimina una sala y sus mensajes
+      security:
+        - firebaseAuth: []
+      description: |
+        Solo quien creó la sala. Borra el documento y la subcolección de mensajes.
+        El aviso a quienes están conectados lo emite el servidor de tiempo real
+        con el evento `sala:eliminar`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: La sala fue eliminada. No hay cuerpo.
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          description: Falta el perfil, o quien llama no creó la sala. No se borra nada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: SIN_PERMISO
+                  mensaje: Solo quien creó la sala puede cambiarla.
+        '404':
+          description: No existe una sala con ese ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /api/v1/salas/{id}/mensajes:
+    get:
+      tags: [Salas]
+      operationId: listarMensajes
+      summary: Devuelve el historial del chat de una sala
+      security:
+        - firebaseAuth: []
+      description: |
+        Los mensajes van del más antiguo al más nuevo dentro de la página.
+        Sin `antes` devuelve los últimos. Con `antes` (el ID del mensaje más antiguo
+        que el cliente ya tiene) devuelve la página anterior. Cualquier persona con
+        sesión y perfil puede leerlos: entrar a la sala es conocer su ID (US-08, US-11).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la sala.
+          schema:
+            type: string
+            example: 7Qk2mXrB9tLwN4pZs1Ha
+        - name: limite
+          in: query
+          required: false
+          description: Cuántos mensajes por página. Entre 1 y 50. Si se omite, son 30.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 30
+        - name: antes
+          in: query
+          required: false
+          description: ID del mensaje más antiguo que el cliente ya muestra. Pide los anteriores a ese.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Página del historial. Puede venir vacía.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaMensajes'
+        '400':
+          description: El límite o el cursor no sirven.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/PerfilIncompleto'
+        '404':
+          description: No existe una sala con ese ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  codigo: SALA_NO_ENCONTRADA
+                  mensaje: No encontramos una sala con ese ID.
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
 
 components:
   responses:
@@ -662,3 +825,37 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Sala'
+    Mensaje:
+      type: object
+      required: [id, salaId, texto, autorUid, nombreUsuario, creadoEn]
+      properties:
+        id:
+          type: string
+          example: 3Nq8pL2aVx1mT6cR
+        salaId:
+          type: string
+          example: 7Qk2mXrB9tLwN4pZs1Ha
+        texto:
+          type: string
+          example: Nos vemos a las 4.
+        autorUid:
+          type: string
+        nombreUsuario:
+          type: string
+          example: ana_r
+        creadoEn:
+          type: string
+          format: date-time
+          example: '2026-11-24T15:10:00.000Z'
+    PaginaMensajes:
+      type: object
+      required: [mensajes, hayAnteriores]
+      properties:
+        mensajes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mensaje'
+        hayAnteriores:
+          type: boolean
+          description: Verdadero si hay mensajes más viejos que el primero de esta página.
+          example: false
