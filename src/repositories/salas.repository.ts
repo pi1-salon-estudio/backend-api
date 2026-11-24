@@ -35,6 +35,14 @@ export async function listarSalasDe(anfitrionUid: string): Promise<SalaGuardada[
   return resultado.docs.map((documento) => leerSala(documento.id, documento.data()))
 }
 
+export async function renombrarSala(id: string, nombre: string): Promise<void> {
+  await salas().doc(id).update({ nombre })
+}
+
+export async function borrarSala(id: string): Promise<void> {
+  await db.recursiveDelete(salas().doc(id))
+}
+
 export async function buscarSala(id: string): Promise<SalaGuardada | null> {
   const documento = await salas().doc(id).get()
   if (!documento.exists) return null
